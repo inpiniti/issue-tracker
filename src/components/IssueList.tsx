@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useStore } from '@/store/useStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,14 +13,16 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Plus } from 'lucide-react';
+import { Plus, Download, Upload } from 'lucide-react';
 
 export function IssueList() {
-  const { issues, addIssue, selectIssue, selectedIssueId } = useStore();
+  const { issues, addIssue, selectIssue, selectedIssueId, setIssues } =
+    useStore();
   const [filterStatus, setFilterStatus] = useState<'progress' | 'done' | 'all'>(
     'all',
   );
   const [openDialog, setOpenDialog] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [newRequestNum, setNewRequestNum] = useState('');
   const [newTitle, setNewTitle] = useState('');
@@ -52,20 +54,90 @@ export function IssueList() {
     return issue.status === filterStatus;
   });
 
+  const handleDownload = () => {
+    const data = {
+      version: '1.0',
+      exportDate: new Date().toISOString(),
+      issues,
+    };
+    const jsonString = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `issue-tracker-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const data = JSON.parse(content);
+        if (data.issues && Array.isArray(data.issues)) {
+          setIssues(data.issues);
+          alert('데이터를 성공적으로 복원했습니다.');
+        } else {
+          alert('올바른 이슈 트래커 백업 파일이 아닙니다.');
+        }
+      } catch (error) {
+        alert('파일을 읽는 중 오류가 발생했습니다.');
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="w-[320px] border-r bg-slate-50 flex flex-col h-full">
       {/* Header */}
       <div className="p-4 border-b bg-white border-slate-200">
         <div className="flex items-center justify-between gap-2 mb-3">
           <h2 className="text-sm font-semibold text-slate-900">이슈 리스트</h2>
-          <Button
-            size="sm"
-            className="h-7 text-xs px-2"
-            onClick={() => setOpenDialog(true)}
-          >
-            <Plus className="h-3 w-3 mr-1" />
-            추가
-          </Button>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs px-2"
+              onClick={handleDownload}
+              title="데이터 다운로드"
+            >
+              <Download className="h-3 w-3" />
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs px-2"
+              onClick={() => fileInputRef.current?.click()}
+              title="데이터 업로드"
+            >
+              <Upload className="h-3 w-3" />
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleUpload}
+              className="hidden"
+            />
+            <Button
+              size="sm"
+              className="h-7 text-xs px-2"
+              onClick={() => setOpenDialog(true)}
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              추가
+            </Button>
+          </div>
         </div>
 
         {/* Tabs */}

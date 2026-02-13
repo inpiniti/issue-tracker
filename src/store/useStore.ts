@@ -19,6 +19,7 @@ interface IssueState {
   deleteTask: (issueId: string, taskId: string) => void;
   addAttachment: (issueId: string, attachment: Omit<Attachment, 'id'>) => void;
   deleteAttachment: (issueId: string, attachmentId: string) => void;
+  setIssues: (issues: Issue[]) => void;
 }
 
 export const useStore = create<IssueState>()(
@@ -139,6 +140,8 @@ export const useStore = create<IssueState>()(
             return issue;
           }),
         })),
+
+      setIssues: (issues) => set({ issues }),
     }),
     {
       name: 'issue-storage', // unique name

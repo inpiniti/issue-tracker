@@ -110,18 +110,7 @@ export function IssueDetail() {
   };
 
   const handleViewImage = (imageData: string) => {
-    const img = new Image();
-    img.src = imageData;
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        window.open(canvas.toDataURL(), '_blank');
-      }
-    };
+    window.open(imageData, '_blank');
   };
 
   // Task handlers

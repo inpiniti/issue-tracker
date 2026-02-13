@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useStore } from '@/store/useStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +38,14 @@ export function IssueDetail() {
   const [attachmentImage, setAttachmentImage] = useState<File | null>(null);
   const attachmentFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Image viewer state
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [viewerImageData, setViewerImageData] = useState<string>('');
+  const [viewerImageName, setViewerImageName] = useState<string>('');
+
+  // Textarea auto-height state
+  const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
+
   // Task dialog state
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -55,17 +63,53 @@ export function IssueDetail() {
     );
   }
 
+  // Textarea auto-height effect
+  useEffect(() => {
+    const textarea = contentTextareaRef.current;
+    if (!textarea) return;
+
+    const adjustHeight = () => {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.max(textarea.scrollHeight, 100) + 'px';
+    };
+
+    adjustHeight();
+    textarea.addEventListener('input', adjustHeight);
+    return () => textarea.removeEventListener('input', adjustHeight);
+  }, []);
+
   // Attachment handlers
   const handleAddAttachment = () => {
     if (!attachmentContent) return;
     const fileName = attachmentImage?.name || '';
-    addAttachment(issue.id, {
-      content: attachmentContent,
-      image: fileName,
-    });
-    setAttachmentContent('');
-    setAttachmentImage(null);
-    setAttachmentDialogOpen(false);
+
+    const handleFileRead = (base64: string) => {
+      addAttachment(issue.id, {
+        content: attachmentContent,
+        image: fileName,
+        imageData: base64,
+      });
+      setAttachmentContent('');
+      setAttachmentImage(null);
+      setAttachmentDialogOpen(false);
+    };
+
+    if (attachmentImage) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target?.result as string;
+        handleFileRead(base64);
+      };
+      reader.readAsDataURL(attachmentImage);
+    } else {
+      handleFileRead('');
+    }
+  };
+
+  const handleViewImage = (imageData: string, imageName: string) => {
+    setViewerImageData(imageData);
+    setViewerImageName(imageName);
+    setImageViewerOpen(true);
   };
 
   // Task handlers
@@ -287,11 +331,18 @@ export function IssueDetail() {
               의뢰 내용
             </Label>
             <Textarea
-              className="min-h-[100px] resize-none text-xs border-slate-200"
+              ref={contentTextareaRef}
+              className="w-full resize-none text-xs border-slate-200 overflow-hidden"
+              style={{ minHeight: '100px', height: '100px' }}
               value={issue.content}
-              onChange={(e) =>
-                updateIssue(issue.id, { content: e.target.value })
-              }
+              onChange={(e) => {
+                updateIssue(issue.id, { content: e.target.value });
+                if (contentTextareaRef.current) {
+                  contentTextareaRef.current.style.height = 'auto';
+                  contentTextareaRef.current.style.height =
+                    Math.max(contentTextareaRef.current.scrollHeight, 100) + 'px';
+                }
+              }}
             />
           </div>
 
@@ -316,9 +367,25 @@ export function IssueDetail() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {issue.attachments.map((att) => (
                 <div key={att.id} className="relative group">
-                  <Card className="overflow-hidden border border-slate-200">
+                  <Card
+                    className={cn(
+                      'overflow-hidden border border-slate-200',
+                      att.imageData ? 'cursor-pointer hover:shadow-md transition-shadow' : '',
+                    )}
+                    onClick={() => {
+                      if (att.imageData) {
+                        handleViewImage(att.imageData, att.image || '이미지');
+                      }
+                    }}
+                  >
                     <div className="aspect-square bg-slate-100 flex items-center justify-center">
-                      {att.image ? (
+                      {att.imageData ? (
+                        <img
+                          src={att.imageData}
+                          alt={att.image}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : att.image ? (
                         <div className="flex flex-col items-center text-slate-500 gap-1">
                           <ImageIcon className="h-6 w-6" />
                           <span className="text-[9px] text-center line-clamp-2 px-1">
@@ -427,6 +494,28 @@ export function IssueDetail() {
           </div>
         </div>
       </ScrollArea>
+
+      {/* Image Viewer Dialog */}
+      <Dialog open={imageViewerOpen} onOpenChange={setImageViewerOpen}>
+        <DialogContent className="w-full max-w-2xl max-h-[90vh] p-2">
+          <div className="flex flex-col gap-2 h-full">
+            <DialogHeader>
+              <DialogTitle className="text-sm font-semibold">
+                {viewerImageName}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 flex items-center justify-center bg-slate-900 rounded">
+              {viewerImageData && (
+                <img
+                  src={viewerImageData}
+                  alt={viewerImageName}
+                  className="max-w-full max-h-[70vh] object-contain"
+                />
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Attachment Dialog */}
       <Dialog

@@ -1,7 +1,8 @@
 export interface Attachment {
   id: string;
   content: string;
-  image?: string;
+  image?: string; // filename
+  imageData?: string; // base64 encoded image
 }
 
 export interface Task {

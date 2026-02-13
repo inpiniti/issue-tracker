@@ -38,10 +38,7 @@ export function IssueDetail() {
   const [attachmentImage, setAttachmentImage] = useState<File | null>(null);
   const attachmentFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Image viewer state
-  const [imageViewerOpen, setImageViewerOpen] = useState(false);
-  const [viewerImageData, setViewerImageData] = useState<string>('');
-  const [viewerImageName, setViewerImageName] = useState<string>('');
+  // Image viewer state (removed - now opening in new tab)
 
   // Textarea auto-height state
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -70,13 +67,19 @@ export function IssueDetail() {
 
     const adjustHeight = () => {
       textarea.style.height = 'auto';
-      textarea.style.height = Math.max(textarea.scrollHeight, 100) + 'px';
+      const scrollHeight = textarea.scrollHeight;
+      textarea.style.height = Math.max(scrollHeight, 100) + 'px';
     };
 
     adjustHeight();
-    textarea.addEventListener('input', adjustHeight);
-    return () => textarea.removeEventListener('input', adjustHeight);
-  }, []);
+  }, [issue.content]);
+
+  const adjustTextareaHeight = () => {
+    const textarea = contentTextareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.max(textarea.scrollHeight, 100) + 'px';
+  };
 
   // Attachment handlers
   const handleAddAttachment = () => {
@@ -106,10 +109,19 @@ export function IssueDetail() {
     }
   };
 
-  const handleViewImage = (imageData: string, imageName: string) => {
-    setViewerImageData(imageData);
-    setViewerImageName(imageName);
-    setImageViewerOpen(true);
+  const handleViewImage = (imageData: string) => {
+    const img = new Image();
+    img.src = imageData;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        window.open(canvas.toDataURL(), '_blank');
+      }
+    };
   };
 
   // Task handlers
@@ -333,15 +345,11 @@ export function IssueDetail() {
             <Textarea
               ref={contentTextareaRef}
               className="w-full resize-none text-xs border-slate-200 overflow-hidden"
-              style={{ minHeight: '100px', height: '100px' }}
+              style={{ minHeight: '100px', height: 'auto' }}
               value={issue.content}
               onChange={(e) => {
                 updateIssue(issue.id, { content: e.target.value });
-                if (contentTextareaRef.current) {
-                  contentTextareaRef.current.style.height = 'auto';
-                  contentTextareaRef.current.style.height =
-                    Math.max(contentTextareaRef.current.scrollHeight, 100) + 'px';
-                }
+                adjustTextareaHeight();
               }}
             />
           </div>
@@ -370,11 +378,13 @@ export function IssueDetail() {
                   <Card
                     className={cn(
                       'overflow-hidden border border-slate-200',
-                      att.imageData ? 'cursor-pointer hover:shadow-md transition-shadow' : '',
+                      att.imageData
+                        ? 'cursor-pointer hover:shadow-md transition-shadow'
+                        : '',
                     )}
                     onClick={() => {
                       if (att.imageData) {
-                        handleViewImage(att.imageData, att.image || '이미지');
+                        handleViewImage(att.imageData);
                       }
                     }}
                   >
@@ -494,28 +504,6 @@ export function IssueDetail() {
           </div>
         </div>
       </ScrollArea>
-
-      {/* Image Viewer Dialog */}
-      <Dialog open={imageViewerOpen} onOpenChange={setImageViewerOpen}>
-        <DialogContent className="w-full max-w-2xl max-h-[90vh] p-2">
-          <div className="flex flex-col gap-2 h-full">
-            <DialogHeader>
-              <DialogTitle className="text-sm font-semibold">
-                {viewerImageName}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="flex-1 flex items-center justify-center bg-slate-900 rounded">
-              {viewerImageData && (
-                <img
-                  src={viewerImageData}
-                  alt={viewerImageName}
-                  className="max-w-full max-h-[70vh] object-contain"
-                />
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Attachment Dialog */}
       <Dialog

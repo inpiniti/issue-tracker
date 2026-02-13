@@ -110,10 +110,22 @@ export function IssueDetail() {
   };
 
   const handleViewImage = (imageData: string) => {
-    const link = document.createElement('a');
-    link.href = imageData;
-    link.target = '_blank';
-    link.click();
+    // base64를 Blob으로 변환
+    const base64Data = imageData.split(',')[1];
+    const mimeType = imageData.split(';')[0].replace('data:', '');
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: mimeType });
+
+    // 객체 URL 생성 후 새 탭에서 열기
+    const objectUrl = URL.createObjectURL(blob);
+    window.open(objectUrl, '_blank');
   };
 
   // Task handlers

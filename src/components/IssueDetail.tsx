@@ -110,7 +110,10 @@ export function IssueDetail() {
   };
 
   const handleViewImage = (imageData: string) => {
-    window.open(imageData, '_blank');
+    const link = document.createElement('a');
+    link.href = imageData;
+    link.target = '_blank';
+    link.click();
   };
 
   // Task handlers

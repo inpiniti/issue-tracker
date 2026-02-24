@@ -36,7 +36,18 @@ export function IssueDetail() {
   const [attachmentDialogOpen, setAttachmentDialogOpen] = useState(false);
   const [attachmentContent, setAttachmentContent] = useState('');
   const [attachmentImage, setAttachmentImage] = useState<File | null>(null);
+  const [attachmentImagePreview, setAttachmentImagePreview] = useState<string | null>(null);
   const attachmentFileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!attachmentImage) {
+      setAttachmentImagePreview(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(attachmentImage);
+    setAttachmentImagePreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [attachmentImage]);
 
   // Image viewer state (removed - now opening in new tab)
 
@@ -181,8 +192,28 @@ export function IssueDetail() {
     setTaskFiles(taskFiles.filter((f) => f !== fileName));
   };
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const blob = items[i].getAsFile();
+        if (blob) {
+          const file = new File([blob], `pasted-image-${Date.now()}.png`, {
+            type: blob.type,
+          });
+          setAttachmentImage(file);
+          if (!attachmentContent) {
+            setAttachmentContent('클립보드 사진');
+          }
+          setAttachmentDialogOpen(true);
+          break;
+        }
+      }
+    }
+  };
+
   return (
-    <div className="flex h-full flex-col bg-white">
+    <div className="flex h-full flex-col bg-white" onPaste={handlePaste}>
       {/* Header */}
       <div className="flex items-center justify-between border-b border-slate-200 p-4 gap-4">
         <div className="flex items-center gap-3 flex-1">
@@ -514,7 +545,7 @@ export function IssueDetail() {
         open={attachmentDialogOpen}
         onOpenChange={setAttachmentDialogOpen}
       >
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px]" onPaste={handlePaste}>
           <DialogHeader>
             <DialogTitle className="text-sm">첨부 사진 추가</DialogTitle>
           </DialogHeader>
@@ -548,9 +579,25 @@ export function IssueDetail() {
                 />
               </div>
               {attachmentImage && (
-                <p className="text-[10px] text-slate-600">
-                  선택됨: {attachmentImage.name}
-                </p>
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-medium text-slate-600 truncate max-w-[200px]">
+                      {attachmentImage.name}
+                    </p>
+                    <Badge variant="secondary" className="text-[9px] px-1 h-4">
+                      {(attachmentImage.size / 1024).toFixed(1)} KB
+                    </Badge>
+                  </div>
+                  {attachmentImagePreview && (
+                    <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 shadow-sm">
+                      <img
+                        src={attachmentImagePreview}
+                        alt="Preview"
+                        className="h-full w-full object-contain"
+                      />
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

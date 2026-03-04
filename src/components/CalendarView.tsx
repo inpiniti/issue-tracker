@@ -31,6 +31,17 @@ export function CalendarView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<CalendarApp | null>(null);
 
+  // 컨테이너 높이를 --df-calendar-height CSS 변수로 전달
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      el.style.setProperty('--df-calendar-height', `${entry.contentRect.height}px`);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   // Keep viewModeRef in sync
   useEffect(() => {
     viewModeRef.current = viewMode;

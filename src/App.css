@@ -40,3 +40,8 @@
 .read-the-docs {
   color: #888;
 }
+
+/* DayFlow 달력 높이를 컨테이너에 맞게 override */
+.calendar-host .df-calendar-container {
+  height: 100% !important;
+}

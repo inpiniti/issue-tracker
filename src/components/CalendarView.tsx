@@ -43,6 +43,7 @@ export function CalendarView() {
       events: [],
       initialDate: new Date(),
       defaultView: ViewType.MONTH,
+      locale: 'ko',
       callbacks: {
         onEventClick(event) {
           const parts = (event.id as string).split('-');
@@ -157,7 +158,7 @@ export function CalendarView() {
       </div>
 
       {/* 달력 */}
-      <div ref={containerRef} className="flex-1 overflow-hidden p-2" />
+      <div ref={containerRef} className="calendar-host flex-1 overflow-hidden" />
     </div>
   );
 }

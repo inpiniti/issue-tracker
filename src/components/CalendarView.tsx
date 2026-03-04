@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CalendarApp,
-  CalendarRenderer,
+  useCalendarApp,
+  DayFlowCalendar,
   createMonthView,
   createWeekView,
   createDayView,
   dateToPlainDate,
   ViewType,
-} from '@dayflow/core';
+} from '@dayflow/react';
 import type { Event as CalEvent } from '@dayflow/core';
 import { useStore } from '../store/useStore';
 
@@ -23,17 +23,30 @@ function parseDate(dateStr: string): Date | null {
   return new Date(y, m - 1, d);
 }
 
+// event.id에서 issueId, taskId 추출
+function parseEventId(id: string, mode: ViewMode) {
+  const parts = id.split('-');
+  if (mode === 'task') {
+    return { issueId: parts.slice(1, -1).join('-'), taskId: parts[parts.length - 1] };
+  }
+  return { issueId: parts.slice(1).join('-'), taskId: undefined };
+}
+
 export function CalendarView() {
   const issues = useStore((s) => s.issues);
   const selectIssue = useStore((s) => s.selectIssue);
   const [viewMode, setViewMode] = useState<ViewMode>('completion');
   const viewModeRef = useRef(viewMode);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const appRef = useRef<CalendarApp | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const prevEventIdsRef = useRef<string[]>([]);
 
-  // 컨테이너 높이를 --df-calendar-height CSS 변수로 전달
   useEffect(() => {
-    const el = containerRef.current;
+    viewModeRef.current = viewMode;
+  }, [viewMode]);
+
+  // ResizeObserver로 실제 높이를 --df-calendar-height 변수로 전달
+  useEffect(() => {
+    const el = wrapperRef.current;
     if (!el) return;
     const observer = new ResizeObserver(([entry]) => {
       el.style.setProperty('--df-calendar-height', `${entry.contentRect.height}px`);
@@ -42,43 +55,19 @@ export function CalendarView() {
     return () => observer.disconnect();
   }, []);
 
-  // Keep viewModeRef in sync
-  useEffect(() => {
-    viewModeRef.current = viewMode;
-  }, [viewMode]);
-
-  // Init CalendarApp and CalendarRenderer once
-  useEffect(() => {
-    const app = new CalendarApp({
-      views: [createMonthView(), createWeekView(), createDayView()],
-      events: [],
-      initialDate: new Date(),
-      defaultView: ViewType.MONTH,
-      locale: 'ko',
-      callbacks: {
-        onEventClick(event) {
-          const parts = (event.id as string).split('-');
-          // id 형식: "completion-<issueId>" | "task-<issueId>-<taskId>" | "period-<issueId>"
-          const issueId =
-            viewModeRef.current === 'task'
-              ? parts.slice(1, -1).join('-')
-              : parts.slice(1).join('-');
-          selectIssue(issueId);
-        },
+  const calendar = useCalendarApp({
+    views: [createMonthView(), createWeekView(), createDayView()],
+    events: [],
+    initialDate: new Date(),
+    defaultView: ViewType.MONTH,
+    locale: 'ko',
+    callbacks: {
+      onEventClick(event) {
+        const { issueId } = parseEventId(event.id as string, viewModeRef.current);
+        selectIssue(issueId);
       },
-    });
-    appRef.current = app;
-
-    const renderer = new CalendarRenderer(app);
-    if (containerRef.current) {
-      renderer.mount(containerRef.current);
-    }
-
-    return () => {
-      renderer.unmount();
-      appRef.current = null;
-    };
-  }, [selectIssue]);
+    },
+  });
 
   const events = useMemo<CalEvent[]>(() => {
     const result: CalEvent[] = [];
@@ -127,17 +116,87 @@ export function CalendarView() {
         });
       }
     }
-
     return result;
   }, [issues, viewMode]);
 
-  // Sync events into CalendarApp when they change
+  // 이벤트 동기화
   useEffect(() => {
-    const app = appRef.current;
-    if (!app) return;
-    const toDelete = app.getAllEvents().map((e) => e.id as string);
-    app.applyEventsChanges({ delete: toDelete, add: events });
-  }, [events]);
+    const toDelete = prevEventIdsRef.current;
+    prevEventIdsRef.current = events.map((e) => e.id as string);
+    calendar.applyEventsChanges({ delete: toDelete, add: events });
+  }, [events, calendar]);
+
+  // 이벤트 클릭 시 이슈 상세 패널 (이슈 내용 + 작업 내역 표시)
+  const eventDetailContent = useCallback(
+    ({ event, onClose }: { event: CalEvent; onClose: () => void }) => {
+      const id = event.id as string;
+      const mode: ViewMode = id.startsWith('task-')
+        ? 'task'
+        : id.startsWith('completion-')
+          ? 'completion'
+          : 'period';
+      const { issueId, taskId } = parseEventId(id, mode);
+      const issue = issues.find((i) => i.id === issueId);
+      if (!issue) return null;
+
+      const task = taskId ? issue.tasks.find((t) => t.id === taskId) : null;
+
+      return (
+        <div className="p-3 min-w-[260px] max-w-[340px] text-sm">
+          {/* 이슈 제목 */}
+          <div className="font-semibold text-base mb-0.5 text-gray-900 dark:text-gray-100 leading-snug">
+            {issue.title || issue.requestNumber}
+          </div>
+          {issue.title && issue.requestNumber && (
+            <div className="text-xs text-gray-400 mb-2">{issue.requestNumber}</div>
+          )}
+
+          {task ? (
+            /* 작업 내역 기준: 해당 작업 상세 */
+            <div>
+              <div className="text-xs text-gray-400 mb-1">{task.date}{task.duration ? ` · ${task.duration}h` : ''}</div>
+              <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                {task.content}
+              </div>
+            </div>
+          ) : (
+            /* 완료일/기간 기준: 이슈 내용 + 전체 작업 내역 */
+            <>
+              {issue.content && (
+                <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed mb-2">
+                  {issue.content}
+                </div>
+              )}
+              {issue.tasks.length > 0 && (
+                <div className="mt-1 border-t pt-2">
+                  <div className="text-xs font-medium text-gray-400 mb-1.5">작업 내역</div>
+                  <div className="space-y-1.5">
+                    {issue.tasks.map((t) => (
+                      <div key={t.id} className="text-xs">
+                        <span className="text-gray-400">{t.date}</span>
+                        {t.duration && <span className="text-gray-400"> · {t.duration}h</span>}
+                        <div className="text-gray-600 dark:text-gray-400 mt-0.5 whitespace-pre-wrap">
+                          {t.content}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          <button
+            onClick={() => { selectIssue(issueId); onClose(); }}
+            className="mt-3 text-xs text-blue-500 hover:underline"
+          >
+            목록에서 보기 →
+          </button>
+        </div>
+      );
+    },
+    [issues, selectIssue],
+  );
 
   const modeButtons: { key: ViewMode; label: string }[] = [
     { key: 'completion', label: '완료일 기준' },
@@ -168,8 +227,13 @@ export function CalendarView() {
         </span>
       </div>
 
-      {/* 달력 */}
-      <div ref={containerRef} className="calendar-host flex-1 overflow-hidden" />
+      {/* 달력 - ResizeObserver가 달린 wrapper로 --df-calendar-height 변수 주입 */}
+      <div ref={wrapperRef} className="flex-1 overflow-hidden">
+        <DayFlowCalendar
+          calendar={calendar}
+          eventDetailContent={eventDetailContent}
+        />
+      </div>
     </div>
   );
 }

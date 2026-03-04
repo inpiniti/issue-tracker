@@ -2,3 +2,8 @@
   height: 100%;
   overflow: hidden;
 }
+
+/* DayFlow React wrapper가 부모 높이를 채우도록 */
+.df-calendar-wrapper {
+  height: 100%;
+}

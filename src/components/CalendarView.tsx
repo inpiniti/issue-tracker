@@ -51,18 +51,16 @@ export function CalendarView() {
     const el = wrapperRef.current;
     if (!el) return;
     const observer = new ResizeObserver(([entry]) => {
-      const h = entry.contentRect.height;
-      if (h > 0) {
-        setCalendarHeight(h);
-        el.style.setProperty('--df-calendar-height', `${h}px`);
-      }
+      const h = Math.max(entry.contentRect.height, 650);
+      setCalendarHeight(h);
+      el.style.setProperty('--df-calendar-height', `${h}px`);
     });
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
   const calendar = useCalendarApp({
-    views: [createMonthView(), createWeekView(), createDayView(), createYearView()],
+    views: [createMonthView({ snapToMonth: true }), createWeekView(), createDayView(), createYearView()],
     events: [],
     initialDate: new Date(),
     defaultView: ViewType.MONTH,

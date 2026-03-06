@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -53,19 +52,7 @@ export function CalendarView() {
   const issues = useStore((s) => s.issues);
   const selectIssue = useStore((s) => s.selectIssue);
   const [viewMode, setViewMode] = useState<ViewMode>('completion');
-  const wrapperRef = useRef<HTMLDivElement>(null);
   const prevEventIdsRef = useRef<string[]>([]);
-  // 컨테이너 실제 높이를 측정 → style 및 CSS 변수로 DayFlow에 전달
-  useLayoutEffect(() => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(([entry]) => {
-      const h = Math.max(entry.contentRect.height, 650);
-      el.style.setProperty('--df-calendar-height', `${h}px`);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
 
   const calendar = useCalendarApp({
     views: [
@@ -236,7 +223,7 @@ export function CalendarView() {
   ];
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* 기준 선택 */}
       <div className="flex items-center gap-2 px-4 py-2 border-b bg-background flex-shrink-0">
         <span className="text-sm text-muted-foreground mr-2">표시 기준:</span>
@@ -259,7 +246,7 @@ export function CalendarView() {
       </div>
 
       {/* 달력 */}
-      <div ref={wrapperRef} className="flex-1 min-h-[650px]">
+      <div className="flex-1 min-h-0">
         <DayFlowCalendar
           calendar={calendar}
           eventDetailContent={eventDetailContent}

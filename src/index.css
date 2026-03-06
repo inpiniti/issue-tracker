@@ -86,3 +86,16 @@
     @apply text-xs font-semibold;
   }
 }
+
+.df-calendar-container {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  height: 100%;
+  min-height: 650px;
+}
+
+.df-calendar-wrapper {
+  height: 100%;
+}

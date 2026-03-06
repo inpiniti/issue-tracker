@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   useCalendarApp,
   DayFlowCalendar,
@@ -26,7 +33,11 @@ function parseDate(dateStr: string): Date | null {
 
 // UUID는 8-4-4-4-12 형식, 즉 5개 세그먼트
 // event.id 형식: "{prefix}-{issueUUID}" 또는 "task-{issueUUID}-{taskUUID}"
-function parseEventId(id: string): { prefix: string; issueId: string; taskId?: string } {
+function parseEventId(id: string): {
+  prefix: string;
+  issueId: string;
+  taskId?: string;
+} {
   const parts = id.split('-');
   const prefix = parts[0]; // 'completion' | 'task' | 'period'
   const UUID_SEGS = 5; // UUID 세그먼트 수
@@ -57,7 +68,12 @@ export function CalendarView() {
   }, []);
 
   const calendar = useCalendarApp({
-    views: [createMonthView(), createWeekView(), createDayView(), createYearView()],
+    views: [
+      createMonthView(),
+      createWeekView(),
+      createDayView(),
+      createYearView(),
+    ],
     events: [],
     initialDate: new Date(),
     defaultView: ViewType.MONTH,
@@ -130,7 +146,9 @@ export function CalendarView() {
 
       if (!issue) {
         return (
-          <div className="p-3 text-sm text-gray-500">이슈를 찾을 수 없습니다. (id: {issueId})</div>
+          <div className="p-3 text-sm text-gray-500">
+            이슈를 찾을 수 없습니다. (id: {issueId})
+          </div>
         );
       }
 
@@ -143,7 +161,9 @@ export function CalendarView() {
             {issue.title || issue.requestNumber}
           </div>
           {issue.title && issue.requestNumber && (
-            <div className="text-xs text-gray-400 mb-2">{issue.requestNumber}</div>
+            <div className="text-xs text-gray-400 mb-2">
+              {issue.requestNumber}
+            </div>
           )}
 
           {task ? (
@@ -167,12 +187,19 @@ export function CalendarView() {
               )}
               {issue.tasks.length > 0 && (
                 <div className="mt-1 border-t border-gray-100 dark:border-gray-700 pt-2">
-                  <div className="text-xs font-medium text-gray-400 mb-1.5">작업 내역</div>
+                  <div className="text-xs font-medium text-gray-400 mb-1.5">
+                    작업 내역
+                  </div>
                   <div className="space-y-1.5">
                     {issue.tasks.map((t) => (
                       <div key={t.id} className="text-xs">
                         <span className="text-gray-400">{t.date}</span>
-                        {t.duration && <span className="text-gray-400"> · {t.duration}h</span>}
+                        {t.duration && (
+                          <span className="text-gray-400">
+                            {' '}
+                            · {t.duration}h
+                          </span>
+                        )}
                         <div className="text-gray-600 dark:text-gray-400 mt-0.5 whitespace-pre-wrap">
                           {t.content}
                         </div>
@@ -226,7 +253,9 @@ export function CalendarView() {
             {label}
           </button>
         ))}
-        <span className="ml-auto text-xs text-muted-foreground">{events.length}개 항목</span>
+        <span className="ml-auto text-xs text-muted-foreground">
+          {events.length}개 항목
+        </span>
       </div>
 
       {/* 달력 */}

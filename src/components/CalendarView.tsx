@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   useCalendarApp,
   DayFlowCalendar,
   createMonthView,
   createWeekView,
   createDayView,
+  createYearView,
   dateToPlainDate,
   ViewType,
 } from '@dayflow/react';
@@ -23,50 +24,49 @@ function parseDate(dateStr: string): Date | null {
   return new Date(y, m - 1, d);
 }
 
-// event.id에서 issueId, taskId 추출
-function parseEventId(id: string, mode: ViewMode) {
+// UUID는 8-4-4-4-12 형식, 즉 5개 세그먼트
+// event.id 형식: "{prefix}-{issueUUID}" 또는 "task-{issueUUID}-{taskUUID}"
+function parseEventId(id: string): { prefix: string; issueId: string; taskId?: string } {
   const parts = id.split('-');
-  if (mode === 'task') {
-    return { issueId: parts.slice(1, -1).join('-'), taskId: parts[parts.length - 1] };
+  const prefix = parts[0]; // 'completion' | 'task' | 'period'
+  const UUID_SEGS = 5; // UUID 세그먼트 수
+  const issueId = parts.slice(1, 1 + UUID_SEGS).join('-');
+  if (prefix === 'task') {
+    const taskId = parts.slice(1 + UUID_SEGS).join('-');
+    return { prefix, issueId, taskId };
   }
-  return { issueId: parts.slice(1).join('-'), taskId: undefined };
+  return { prefix, issueId };
 }
 
 export function CalendarView() {
   const issues = useStore((s) => s.issues);
   const selectIssue = useStore((s) => s.selectIssue);
   const [viewMode, setViewMode] = useState<ViewMode>('completion');
-  const viewModeRef = useRef(viewMode);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const prevEventIdsRef = useRef<string[]>([]);
+  const [calendarHeight, setCalendarHeight] = useState<number>(800);
 
-  useEffect(() => {
-    viewModeRef.current = viewMode;
-  }, [viewMode]);
-
-  // ResizeObserver로 실제 높이를 --df-calendar-height 변수로 전달
-  useEffect(() => {
+  // 컨테이너 실제 높이를 측정 → style 및 CSS 변수로 DayFlow에 전달
+  useLayoutEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
     const observer = new ResizeObserver(([entry]) => {
-      el.style.setProperty('--df-calendar-height', `${entry.contentRect.height}px`);
+      const h = entry.contentRect.height;
+      if (h > 0) {
+        setCalendarHeight(h);
+        el.style.setProperty('--df-calendar-height', `${h}px`);
+      }
     });
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
   const calendar = useCalendarApp({
-    views: [createMonthView(), createWeekView(), createDayView()],
+    views: [createMonthView(), createWeekView(), createDayView(), createYearView()],
     events: [],
     initialDate: new Date(),
     defaultView: ViewType.MONTH,
     locale: 'ko',
-    callbacks: {
-      onEventClick(event) {
-        const { issueId } = parseEventId(event.id as string, viewModeRef.current);
-        selectIssue(issueId);
-      },
-    },
   });
 
   const events = useMemo<CalEvent[]>(() => {
@@ -124,20 +124,20 @@ export function CalendarView() {
     const toDelete = prevEventIdsRef.current;
     prevEventIdsRef.current = events.map((e) => e.id as string);
     calendar.applyEventsChanges({ delete: toDelete, add: events });
-  }, [events, calendar]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events]);
 
-  // 이벤트 클릭 시 이슈 상세 패널 (이슈 내용 + 작업 내역 표시)
+  // 이벤트 클릭 시 이슈 내용 + 작업 내역 패널
   const eventDetailContent = useCallback(
     ({ event, onClose }: { event: CalEvent; onClose: () => void }) => {
-      const id = event.id as string;
-      const mode: ViewMode = id.startsWith('task-')
-        ? 'task'
-        : id.startsWith('completion-')
-          ? 'completion'
-          : 'period';
-      const { issueId, taskId } = parseEventId(id, mode);
+      const { prefix, issueId, taskId } = parseEventId(event.id as string);
       const issue = issues.find((i) => i.id === issueId);
-      if (!issue) return null;
+
+      if (!issue) {
+        return (
+          <div className="p-3 text-sm text-gray-500">이슈를 찾을 수 없습니다. (id: {issueId})</div>
+        );
+      }
 
       const task = taskId ? issue.tasks.find((t) => t.id === taskId) : null;
 
@@ -154,7 +154,10 @@ export function CalendarView() {
           {task ? (
             /* 작업 내역 기준: 해당 작업 상세 */
             <div>
-              <div className="text-xs text-gray-400 mb-1">{task.date}{task.duration ? ` · ${task.duration}h` : ''}</div>
+              <div className="text-xs text-gray-400 mb-1">
+                {task.date}
+                {task.duration && ` · ${task.duration}h`}
+              </div>
               <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
                 {task.content}
               </div>
@@ -168,7 +171,7 @@ export function CalendarView() {
                 </div>
               )}
               {issue.tasks.length > 0 && (
-                <div className="mt-1 border-t pt-2">
+                <div className="mt-1 border-t border-gray-100 dark:border-gray-700 pt-2">
                   <div className="text-xs font-medium text-gray-400 mb-1.5">작업 내역</div>
                   <div className="space-y-1.5">
                     {issue.tasks.map((t) => (
@@ -187,13 +190,19 @@ export function CalendarView() {
           )}
 
           <button
-            onClick={() => { selectIssue(issueId); onClose(); }}
-            className="mt-3 text-xs text-blue-500 hover:underline"
+            onClick={() => {
+              selectIssue(issueId);
+              onClose();
+            }}
+            className="mt-3 text-xs text-blue-500 hover:underline block"
           >
             목록에서 보기 →
           </button>
         </div>
       );
+
+      // prefix 사용 (linter warning 방지)
+      void prefix;
     },
     [issues, selectIssue],
   );
@@ -222,15 +231,14 @@ export function CalendarView() {
             {label}
           </button>
         ))}
-        <span className="ml-auto text-xs text-muted-foreground">
-          {events.length}개 항목
-        </span>
+        <span className="ml-auto text-xs text-muted-foreground">{events.length}개 항목</span>
       </div>
 
-      {/* 달력 - ResizeObserver가 달린 wrapper로 --df-calendar-height 변수 주입 */}
+      {/* 달력 */}
       <div ref={wrapperRef} className="flex-1 overflow-hidden">
         <DayFlowCalendar
           calendar={calendar}
+          style={{ height: calendarHeight }}
           eventDetailContent={eventDetailContent}
         />
       </div>

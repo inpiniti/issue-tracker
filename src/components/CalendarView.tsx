@@ -44,15 +44,12 @@ export function CalendarView() {
   const [viewMode, setViewMode] = useState<ViewMode>('completion');
   const wrapperRef = useRef<HTMLDivElement>(null);
   const prevEventIdsRef = useRef<string[]>([]);
-  const [calendarHeight, setCalendarHeight] = useState<number>(800);
-
   // 컨테이너 실제 높이를 측정 → style 및 CSS 변수로 DayFlow에 전달
   useLayoutEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
     const observer = new ResizeObserver(([entry]) => {
       const h = Math.max(entry.contentRect.height, 650);
-      setCalendarHeight(h);
       el.style.setProperty('--df-calendar-height', `${h}px`);
     });
     observer.observe(el);
@@ -60,7 +57,7 @@ export function CalendarView() {
   }, []);
 
   const calendar = useCalendarApp({
-    views: [createMonthView({ snapToMonth: true }), createWeekView(), createDayView(), createYearView()],
+    views: [createMonthView(), createWeekView(), createDayView(), createYearView()],
     events: [],
     initialDate: new Date(),
     defaultView: ViewType.MONTH,
@@ -233,10 +230,9 @@ export function CalendarView() {
       </div>
 
       {/* 달력 */}
-      <div ref={wrapperRef} className="flex-1 overflow-hidden">
+      <div ref={wrapperRef} className="flex-1 min-h-[650px]">
         <DayFlowCalendar
           calendar={calendar}
-          style={{ height: calendarHeight }}
           eventDetailContent={eventDetailContent}
         />
       </div>
